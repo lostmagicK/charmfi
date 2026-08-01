@@ -264,7 +264,7 @@ struct PDFExpenseParser {
         guard !description.isEmpty else { return nil }
 
         return ParsedExpense(amount: amount, merchant: description,
-                             paymentMethod: .other, transactionDate: date ?? Date())
+                             paymentMethod: .other, transactionDate: date ?? Date(), bankName: nil)
     }
 
     // MARK: - Date parsing

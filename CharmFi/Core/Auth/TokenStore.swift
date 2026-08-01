@@ -70,7 +70,7 @@ final class TokenStore: @unchecked Sendable {
             kSecAttrAccount as String: key,
             kSecAttrService as String: "in.charmee.charmfi"
         ]
-        var updateAttrs: [String: Any] = [kSecValueData as String: data]
+        let updateAttrs: [String: Any] = [kSecValueData as String: data]
         if SecItemUpdate(query as CFDictionary, updateAttrs as CFDictionary) == errSecItemNotFound {
             var addQuery = query
             addQuery[kSecValueData as String] = data
