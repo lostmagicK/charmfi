@@ -597,6 +597,10 @@ private struct BudgetCellButton: View {
     }
 }
 
+// Free function rather than a method so every budget row shape can share it. SwiftUI's View
+// initializers are @MainActor-isolated under Swift 6, and a top-level function is nonisolated by
+// default, so the isolation has to be stated explicitly — every caller is a View body already.
+@MainActor
 private func progressSection(_ b: Budget) -> some View {
     VStack(spacing: 3) {
         ProgressBarView(spent: b.spent, total: b.effectiveAmount, showLabel: false)
