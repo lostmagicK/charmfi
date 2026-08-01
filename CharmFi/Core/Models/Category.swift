@@ -120,14 +120,21 @@ let savingsOtherColor = "#94a3b8"
 /// Past this many groups the tail folds into "Other" — more hues stop being distinguishable.
 private let maxSavingsGroups = 8
 
+/// Accumulator for `savingsGroups()` — a top-level type because Swift doesn't allow a type to be
+/// declared inside a function on a generic extension (`Collection where Element == Category`).
+private struct SavingsGroupBuilder {
+    let name: String
+    let icon: String?
+    let color: String
+    var ids: Set<String> = []
+}
+
 extension Collection where Element == Category {
     /// The top-level buckets under "Savings and Investments" — "Equity", "Debt", "Retirement" and
     /// so on — each carrying the ids of its whole subtree. Groups of the same name under different
     /// savings roots merge into a single series.
     func savingsGroups() -> [SavingsGroup] {
-        struct Builder { let name: String; let icon: String?; let color: String; var ids: Set<String> = [] }
-
-        var byName: [String: Builder] = [:]
+        var byName: [String: SavingsGroupBuilder] = [:]
         var order: [String] = []
         func subtree(_ cat: Category, into ids: inout Set<String>) {
             ids.insert(cat.id)
@@ -137,7 +144,7 @@ extension Collection where Element == Category {
             let key = cat.name.trimmingCharacters(in: .whitespaces).lowercased()
             if byName[key] == nil {
                 let color = (cat.color?.isEmpty == false ? cat.color! : savingsGroupColors[order.count % savingsGroupColors.count])
-                byName[key] = Builder(name: cat.name.trimmingCharacters(in: .whitespaces), icon: cat.icon, color: color)
+                byName[key] = SavingsGroupBuilder(name: cat.name.trimmingCharacters(in: .whitespaces), icon: cat.icon, color: color)
                 order.append(key)
             }
             var ids = byName[key]!.ids

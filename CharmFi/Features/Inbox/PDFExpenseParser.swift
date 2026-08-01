@@ -166,7 +166,7 @@ struct PDFExpenseParser {
             guard isDebit else { continue }
             let merchant = row.narration.count > 1 ? row.narration : "Bank Transaction"
             expenses.append(ParsedExpense(amount: row.amount, merchant: merchant,
-                                          paymentMethod: .other, transactionDate: row.date))
+                                          paymentMethod: .other, transactionDate: row.date, bankName: nil))
         }
         return expenses
     }
