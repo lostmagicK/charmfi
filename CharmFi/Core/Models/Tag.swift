@@ -2,7 +2,7 @@ import Foundation
 
 /// A tag as it appears attached to a category/expense — the server resolves inheritance at read
 /// time, so `inheritedTags` arrives already expanded. Mirrors Android's `TagRef`.
-struct TagRef: Codable, Identifiable, Hashable {
+struct TagRef: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let color: String
@@ -11,7 +11,7 @@ struct TagRef: Codable, Identifiable, Hashable {
 }
 
 /// A tag as returned/edited from the Tags management screen.
-struct TagResponse: Codable, Identifiable {
+struct TagResponse: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var color: String
@@ -21,7 +21,7 @@ struct TagResponse: Codable, Identifiable {
     var sortOrder: Int
 }
 
-struct TagRequest: Encodable {
+struct TagRequest: Encodable, Sendable {
     var name: String
     var color: String
     var sortOrder: Int?
@@ -29,7 +29,7 @@ struct TagRequest: Encodable {
 
 /// Whole-set replace — both the category and expense "set tags" endpoints take the complete
 /// desired set of tag ids, not a delta.
-struct SetTagsRequest: Encodable {
+struct SetTagsRequest: Encodable, Sendable {
     var tagIds: [String]
 }
 

@@ -205,7 +205,6 @@ final class ExpenseListViewModel {
 
     private func dateRange() -> (Date?, Date?) {
         let cal = Calendar.current
-        let now = Date()
         switch datePreset {
         case .thisMonth:
             return (Date.startOfThisMonth, Date.startOfNextMonth)

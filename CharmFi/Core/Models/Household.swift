@@ -1,12 +1,12 @@
 import Foundation
 
-struct HouseholdDailyPoint: Codable, Identifiable {
+struct HouseholdDailyPoint: Codable, Identifiable, Sendable {
     var id: Int { day }
     let day: Int
     let total: Double
 }
 
-struct HouseholdSummary: Codable {
+struct HouseholdSummary: Codable, Sendable {
     var totalThisMonth: Double
     var totalThisYear: Double
     var transactionCountThisMonth: Int
@@ -20,7 +20,7 @@ struct HouseholdSummary: Codable {
     var recent: [HouseholdExpenseItem]
 }
 
-struct HouseholdMemberSummary: Codable, Identifiable {
+struct HouseholdMemberSummary: Codable, Identifiable, Sendable {
     var id: String { userId }
     var userId: String
     var displayName: String
@@ -28,7 +28,7 @@ struct HouseholdMemberSummary: Codable, Identifiable {
     var totalThisMonth: Double
 }
 
-struct HouseholdSubcategorySummary: Codable, Identifiable {
+struct HouseholdSubcategorySummary: Codable, Identifiable, Sendable {
     var id: String { categoryId }
     var categoryId: String
     var name: String
@@ -37,7 +37,7 @@ struct HouseholdSubcategorySummary: Codable, Identifiable {
     var count: Int
 }
 
-struct HouseholdCategoryGroup: Codable, Identifiable {
+struct HouseholdCategoryGroup: Codable, Identifiable, Sendable {
     var id: String { categoryId }
     var categoryId: String
     var name: String
@@ -47,7 +47,7 @@ struct HouseholdCategoryGroup: Codable, Identifiable {
     var subcategories: [HouseholdSubcategorySummary]
 }
 
-struct HouseholdMonthlyPoint: Codable, Identifiable {
+struct HouseholdMonthlyPoint: Codable, Identifiable, Sendable {
     var id: String { month }
     var month: String      // e.g. "2024-01"
     var myAmount: Double
@@ -63,7 +63,7 @@ struct HouseholdMonthlyPoint: Codable, Identifiable {
     }
 }
 
-struct HouseholdExpenseItem: Codable, Identifiable {
+struct HouseholdExpenseItem: Codable, Identifiable, Sendable {
     var id: String
     var ownerUserId: String
     var ownerDisplayName: String
@@ -78,7 +78,7 @@ struct HouseholdExpenseItem: Codable, Identifiable {
     var paymentMethod: String
 }
 
-struct HouseholdExpenseFilters {
+struct HouseholdExpenseFilters: Sendable {
     var from: Date?
     var to: Date?
     var ownerUserId: String?

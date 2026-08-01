@@ -1,6 +1,6 @@
 import Foundation
 
-struct PaymentAccount: Codable, Identifiable {
+struct PaymentAccount: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var accountType: AccountType
@@ -53,7 +53,7 @@ enum AccountType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct AccountStats: Codable {
+struct AccountStats: Codable, Sendable {
     let accountId: String
     let thisMonthSpend: Double?
     let prevMonthSpend: Double?
@@ -63,12 +63,12 @@ struct AccountStats: Codable {
     let unbilledAmountPrev: Double?
 }
 
-struct AccountOverview: Codable {
+struct AccountOverview: Codable, Sendable {
     let totalOutstanding: Double?
     let totalUnbilled: Double?
 }
 
-struct PaymentAccountRequest: Encodable {
+struct PaymentAccountRequest: Encodable, Sendable {
     var name: String
     var accountType: AccountType
     var bank: String?

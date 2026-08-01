@@ -1,6 +1,6 @@
 import Foundation
 
-struct UserProfile: Codable {
+struct UserProfile: Codable, Sendable {
     let id: String
     var displayName: String?
     var email: String?
@@ -25,13 +25,13 @@ struct UserProfile: Codable {
     }
 }
 
-struct UpdateUserRequest: Encodable {
+struct UpdateUserRequest: Encodable, Sendable {
     var displayName: String?
     var timezone: String?
     var isAdvancedUser: Bool?
 }
 
-struct DashboardSummary: Codable {
+struct DashboardSummary: Codable, Sendable {
     var thisMonth: Double
     var lastMonth: Double
     var thisYear: Double
@@ -45,13 +45,13 @@ struct DashboardSummary: Codable {
     var recentExpenses: [Expense]
 }
 
-struct MonthlyAmount: Codable, Identifiable {
+struct MonthlyAmount: Codable, Identifiable, Sendable {
     var id: String { month }
     var month: String
     var amount: Double
 }
 
-struct CategoryAmount: Codable, Identifiable {
+struct CategoryAmount: Codable, Identifiable, Sendable {
     var id: String { categoryId ?? name }
     var categoryId: String?
     var name: String
@@ -59,13 +59,13 @@ struct CategoryAmount: Codable, Identifiable {
     var count: Int
 }
 
-struct MethodAmount: Codable, Identifiable {
+struct MethodAmount: Codable, Identifiable, Sendable {
     var id: String { method }
     var method: String
     var amount: Double
 }
 
-struct MerchantAmount: Codable, Identifiable {
+struct MerchantAmount: Codable, Identifiable, Sendable {
     var id: String { merchant }
     var merchant: String
     var amount: Double

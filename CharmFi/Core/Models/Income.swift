@@ -13,7 +13,7 @@ enum IncomeKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct IncomeSource: Codable, Identifiable {
+struct IncomeSource: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var kind: IncomeKind
@@ -28,7 +28,7 @@ struct IncomeSource: Codable, Identifiable {
     var sortOrder: Int
 }
 
-struct IncomeSourceRequest: Encodable {
+struct IncomeSourceRequest: Encodable, Sendable {
     var name: String
     var kind: IncomeKind
     var defaultAmount: Double
@@ -42,7 +42,7 @@ struct IncomeSourceRequest: Encodable {
     var isActive: Bool = true
 }
 
-struct IncomeSourceAmount: Codable, Identifiable {
+struct IncomeSourceAmount: Codable, Identifiable, Sendable {
     let sourceId: String
     let name: String
     let kind: IncomeKind
@@ -53,7 +53,7 @@ struct IncomeSourceAmount: Codable, Identifiable {
     var id: String { sourceId }
 }
 
-struct IncomeEntry: Codable, Identifiable {
+struct IncomeEntry: Codable, Identifiable, Sendable {
     let id: String
     let incomeSourceId: String
     let sourceName: String
@@ -66,7 +66,7 @@ struct IncomeEntry: Codable, Identifiable {
     var note: String?
 }
 
-struct IncomeMonth: Codable {
+struct IncomeMonth: Codable, Sendable {
     let year: Int
     let month: Int
     let currency: String
@@ -78,7 +78,7 @@ struct IncomeMonth: Codable {
 }
 
 /// One month in the trailing income summary used by the dashboard's savings-rate calculation.
-struct MonthlyIncomePoint: Codable {
+struct MonthlyIncomePoint: Codable, Sendable {
     let year: Int
     let month: Int
     let fixed: Double
@@ -87,7 +87,7 @@ struct MonthlyIncomePoint: Codable {
     let bySource: [IncomeSourceAmount]
 }
 
-struct IncomeEntryRequest: Encodable {
+struct IncomeEntryRequest: Encodable, Sendable {
     var incomeSourceId: String
     var amount: Double
     var currency: String = "INR"
@@ -95,12 +95,12 @@ struct IncomeEntryRequest: Encodable {
     var note: String?
 }
 
-struct IncomeEntryUpdateRequest: Encodable {
+struct IncomeEntryUpdateRequest: Encodable, Sendable {
     var amount: Double
     var receivedOn: Date
     var note: String?
 }
 
-struct IdResponse: Decodable {
+struct IdResponse: Decodable, Sendable {
     let id: String
 }

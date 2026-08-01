@@ -2,7 +2,7 @@ import Foundation
 
 /// A dynamic JSON value — stands in for Kotlin's `JsonObject` (Gson) for tool schemas, tool-call
 /// inputs, and Gemini function args/responses, none of which have a fixed Swift shape.
-indirect enum JSONValue: Codable, Equatable {
+indirect enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)

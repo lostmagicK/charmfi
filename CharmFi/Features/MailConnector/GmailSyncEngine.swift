@@ -59,8 +59,8 @@ struct GmailSyncEngine {
                             transactionDate: parsed.transactionDate,
                             source: .email,
                             status: .draft,
-                            rawSmsText: Self.cleanRawText(message.body),
-                            paymentAccountId: accountId
+                            paymentAccountId: accountId,
+                            rawSmsText: Self.cleanRawText(message.body)
                         )
                         do {
                             let expense = try await expenseService.createExpense(req)

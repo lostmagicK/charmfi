@@ -1,5 +1,5 @@
 import Foundation
-import GoogleSignIn
+@preconcurrency import GoogleSignIn
 import UIKit
 
 @MainActor

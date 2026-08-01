@@ -1,6 +1,6 @@
 import Foundation
 
-struct Category: Codable, Identifiable {
+struct Category: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     var icon: String?
@@ -104,7 +104,7 @@ extension Collection where Element == Category {
 }
 
 /// One stacked series on the savings chart: a top-level bucket under "Savings and Investments".
-struct SavingsGroup {
+struct SavingsGroup: Sendable {
     let name: String
     let icon: String?
     let color: String
@@ -166,14 +166,14 @@ extension Collection where Element == Category {
     }
 }
 
-struct CategoryRequest: Encodable {
+struct CategoryRequest: Encodable, Sendable {
     var name: String
     var icon: String?
     var color: String?
     var parentId: String?
 }
 
-struct ReorderItem: Encodable {
+struct ReorderItem: Encodable, Sendable {
     var id: String
     var sortOrder: Int
 }

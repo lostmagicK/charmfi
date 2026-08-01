@@ -1,6 +1,6 @@
 import Foundation
 
-struct Budget: Codable, Identifiable {
+struct Budget: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var defaultAmount: Double
@@ -31,7 +31,7 @@ struct Budget: Codable, Identifiable {
     var categorySpending: [String: Double]?
 }
 
-struct BudgetCycle: Codable, Identifiable {
+struct BudgetCycle: Codable, Identifiable, Sendable {
     let id: String
     let budgetId: String?
     let cycleStartDate: Date
@@ -42,7 +42,7 @@ struct BudgetCycle: Codable, Identifiable {
     var spent: Double
 }
 
-struct BudgetRequest: Encodable {
+struct BudgetRequest: Encodable, Sendable {
     var name: String
     var defaultAmount: Double
     var currency: String = "INR"
@@ -55,11 +55,11 @@ struct BudgetRequest: Encodable {
     var rolloverEnabled: Bool = false
 }
 
-struct UpdateCycleRequest: Encodable {
+struct UpdateCycleRequest: Encodable, Sendable {
     var baseAmount: Double
 }
 
-struct BudgetCycleCreateRequest: Encodable {
+struct BudgetCycleCreateRequest: Encodable, Sendable {
     var budgetId: String
     var year: Int
     var month: Int

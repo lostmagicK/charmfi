@@ -1,6 +1,6 @@
 import Foundation
 
-struct EmailPattern: Codable, Identifiable {
+struct EmailPattern: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var subjectRegex: String?
@@ -14,7 +14,7 @@ struct EmailPattern: Codable, Identifiable {
     var createdAt: Date?
 }
 
-struct EmailPatternRequest: Encodable {
+struct EmailPatternRequest: Encodable, Sendable {
     var name: String
     var subjectRegex: String?
     var amountRegex: String

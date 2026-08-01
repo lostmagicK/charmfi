@@ -1,6 +1,6 @@
 import Foundation
 
-struct LlmRequest {
+struct LlmRequest: Sendable {
     var model: String
     var systemPrompt: String
     var messages: [AiMessage]

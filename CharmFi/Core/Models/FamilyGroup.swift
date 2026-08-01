@@ -1,13 +1,13 @@
 import Foundation
 
-struct FamilyGroup: Codable, Identifiable {
+struct FamilyGroup: Codable, Identifiable, Sendable {
     let id: String
     var name: String
     var inviteCode: String
     var members: [FamilyMember]
 }
 
-struct FamilyMember: Codable, Identifiable {
+struct FamilyMember: Codable, Identifiable, Sendable {
     var id: String { userId }
     let userId: String
     var displayName: String
@@ -29,7 +29,7 @@ enum MemberRole: String, Codable {
     }
 }
 
-struct FamilyMemberBalance: Codable, Identifiable {
+struct FamilyMemberBalance: Codable, Identifiable, Sendable {
     var id: String { userId }
     let userId: String
     var displayName: String
@@ -38,7 +38,7 @@ struct FamilyMemberBalance: Codable, Identifiable {
     var netBalance: Double
 }
 
-struct SharedExpenseLogEntry: Codable, Identifiable {
+struct SharedExpenseLogEntry: Codable, Identifiable, Sendable {
     let id: String
     var payerUserId: String
     var payerDisplayName: String
@@ -63,7 +63,7 @@ enum SharedExpenseType: String, Codable {
     case settlement = "Settlement"
 }
 
-struct SettleRequest: Encodable {
+struct SettleRequest: Encodable, Sendable {
     var recipientUserId: String
     var amount: Double
     var paymentMethod: PaymentMethod

@@ -147,8 +147,6 @@ final class AiInsightsViewModel {
                 if messages.indices.contains(index) {
                     messages[index].toolActivity.append(ToolActivity(name: name, summary: summary, ok: ok))
                 }
-            case .confirm, .appended:
-                break // not emitted by LlmClient.stream — only by the loop below
             case .turn(let blocks, let stopReason):
                 result = (blocks, stopReason)
             }

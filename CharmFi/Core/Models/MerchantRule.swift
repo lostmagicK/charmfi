@@ -1,6 +1,6 @@
 import Foundation
 
-struct MerchantRule: Codable, Identifiable {
+struct MerchantRule: Codable, Identifiable, Sendable {
     let id: String
     var matchText: String
     var displayName: String?
@@ -36,7 +36,7 @@ struct MerchantRule: Codable, Identifiable {
     }
 }
 
-struct MerchantRuleRequest: Encodable {
+struct MerchantRuleRequest: Encodable, Sendable {
     var matchText: String
     var displayName: String?
     var minAmount: Double?

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Bank: Codable, Identifiable {
+struct Bank: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     var color: String?

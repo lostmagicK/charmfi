@@ -25,7 +25,7 @@ enum AiProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct AiModelOption: Identifiable, Equatable {
+struct AiModelOption: Identifiable, Equatable, Sendable {
     let id: String
     let provider: AiProvider
     let label: String
@@ -74,7 +74,7 @@ enum AiModels {
     }
 }
 
-struct AiTool {
+struct AiTool: Sendable {
     let name: String
     let description: String
     let parameters: JSONValue
@@ -82,7 +82,7 @@ struct AiTool {
 
 /// One content block within a message — text, thinking, a tool call, or a tool result. A single
 /// flattened shape reused everywhere a block appears, mirroring Android's `AnthropicBlockParam`.
-struct AiBlock: Equatable, Codable {
+struct AiBlock: Equatable, Codable, Sendable {
     var type: String
     var text: String? = nil
     var thinking: String? = nil
@@ -120,7 +120,7 @@ struct AiBlock: Equatable, Codable {
     }
 }
 
-struct AiMessage {
+struct AiMessage: Sendable {
     var role: String
     var content: [AiBlock]
 
@@ -136,15 +136,15 @@ struct AiMessage {
     }
 }
 
-enum AiStreamChunk {
+/// Emitted by `LlmClient.stream` as a provider response arrives. Write-tool approval is not
+/// modelled here — the chat ViewModel suspends its own tool loop on a continuation and drives the
+/// confirmation card directly, so nothing crossing this boundary needs to carry a callback.
+enum AiStreamChunk: Sendable {
     case thinking(String)
     case text(String)
     case toolUse(id: String, name: String, input: JSONValue)
     case toolDone(name: String, summary: String, ok: Bool)
-    /// A write-tool call waiting on user approval. `decide` must be called exactly once.
-    case confirm(toolName: String, summary: String, decide: (Bool) -> Void)
     case turn(blocks: [AiBlock], stopReason: String?)
-    case appended(AiMessage)
 }
 
 struct MissingAiKeyException: Error {

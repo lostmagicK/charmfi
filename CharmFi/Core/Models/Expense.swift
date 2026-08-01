@@ -1,6 +1,6 @@
 import Foundation
 
-struct Expense: Codable, Identifiable {
+struct Expense: Codable, Identifiable, Sendable {
     let id: String
     let amount: Double
     var currency: String?         // optional — server may omit on drafts
@@ -29,7 +29,7 @@ extension Expense {
 
 /// An expense the current user paid on behalf of a family member — awaiting the recipient's
 /// review before it's booked against their own account.
-struct PaidForExpense: Codable, Identifiable {
+struct PaidForExpense: Codable, Identifiable, Sendable {
     let id: String
     let recipientUserId: String
     let recipientDisplayName: String
@@ -93,29 +93,29 @@ enum ExpenseStatus: String, Codable {
     }
 }
 
-struct CreatedExpenseResponse: Decodable {
+struct CreatedExpenseResponse: Decodable, Sendable {
     let id: String
 }
 
 // A draft sent to /expenses/check-duplicates. Key is the draft's own id, echoed
 // back in duplicateKeys so the client knows which drafts match a booked expense.
-struct DuplicateCandidateRequest: Encodable {
+struct DuplicateCandidateRequest: Encodable, Sendable {
     let key: String
     let transactionDate: Date
     let amount: Double
     let paymentMethod: PaymentMethod
 }
 
-struct CheckDuplicatesResponse: Decodable {
+struct CheckDuplicatesResponse: Decodable, Sendable {
     let duplicateKeys: [String]
 }
 
-struct PdfUploadResponse: Decodable {
+struct PdfUploadResponse: Decodable, Sendable {
     let created: Int
     let message: String
 }
 
-struct PagedResponse<T: Decodable>: Decodable {
+struct PagedResponse<T: Decodable & Sendable>: Decodable, Sendable {
     let items: [T]
     let total: Int
     let page: Int
@@ -125,7 +125,7 @@ struct PagedResponse<T: Decodable>: Decodable {
 
 // MARK: - Request types
 
-struct CreateExpenseRequest: Encodable {
+struct CreateExpenseRequest: Encodable, Sendable {
     var amount: Double
     var currency: String = "INR"
     var merchant: String
@@ -140,7 +140,7 @@ struct CreateExpenseRequest: Encodable {
     var sharedByUserId: String?
 }
 
-struct UpdateExpenseRequest: Encodable {
+struct UpdateExpenseRequest: Encodable, Sendable {
     var amount: Double?
     var merchant: String?
     var paymentMethod: PaymentMethod?
@@ -150,7 +150,7 @@ struct UpdateExpenseRequest: Encodable {
     var paymentAccountId: String?
 }
 
-struct ExpenseFilters {
+struct ExpenseFilters: Sendable {
     var from: Date?
     var to: Date?
     var categoryId: String?
