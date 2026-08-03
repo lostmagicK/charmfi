@@ -17,7 +17,9 @@ struct BudgetSettingsView: View {
     private var categoryService: CategoryService { CategoryService(auth: authState) }
 
     // Trip buckets are always out of monthly planning already — no point offering them here.
-    private var roots: [Category] { categories.filter { !($0.name == "Trip" && $0.isGlobal) } }
+    /// Trips and Events buckets are nested under the ordinary roots, not roots themselves, and are
+    /// already excluded from monthly planning server-side — so they are never offered here.
+    private var roots: [Category] { categories.pruneTrips() }
     private var isDirty: Bool { excluded != saved }
 
     var body: some View {

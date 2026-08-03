@@ -27,10 +27,11 @@ struct InboxView: View {
             .overlay(alignment: .bottomTrailing) { fabButton }
         }
         .task {
-            let model = InboxViewModel(auth: authState)
-            model.setModelContext(modelContext)
+            let (model, isNew) = ViewModelStore.shared.model(InboxViewModel.self, auth: authState) {
+                $0.setModelContext(modelContext)
+            }
             vm = model
-            await model.load()
+            if isNew { await model.load() }
         }
         .confirmationDialog("Scan", isPresented: $showScanOptions, titleVisibility: .visible) {
             Button("Scan from Email") { showScanEmailSheet = true }
@@ -787,6 +788,7 @@ struct DraftExpenseCard: View {
          onApprove: @escaping () async -> Void,
          onDiscard: @escaping () async -> Void,
          onSplit: @escaping ([SplitItem]) async -> Void = { _ in },
+         onSettle: @escaping (String, PaymentMethod, String?, String?) async -> Void = { _, _, _, _ in },
          onToggleSelect: @escaping () -> Void,
          onLongPress: @escaping () -> Void) {
         self.draft = draft; self.categories = categories; self.accounts = accounts
@@ -795,7 +797,8 @@ struct DraftExpenseCard: View {
         self.isJustSubmitted = isJustSubmitted
         self.dupKind = dupKind
         self.onUpdate = onUpdate; self.onApprove = onApprove; self.onDiscard = onDiscard
-        self.onSplit = onSplit; self.onToggleSelect = onToggleSelect; self.onLongPress = onLongPress
+        self.onSplit = onSplit; self.onSettle = onSettle
+        self.onToggleSelect = onToggleSelect; self.onLongPress = onLongPress
         _merchant = State(initialValue: draft.merchant)
         _categoryId = State(initialValue: draft.categoryId)
         _method = State(initialValue: draft.paymentMethod)

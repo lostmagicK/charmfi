@@ -15,16 +15,19 @@ struct CategoriesView: View {
     private var tagService: TagService { TagService(auth: authState) }
 
     var body: some View {
-        Group {
-            if isLoading { ProgressView() }
+        // The banner sits above the loading/empty/content switch: a failed load leaves `categories`
+        // empty, and a banner nested in the populated branch would never render — the failure would
+        // read as "No Categories".
+        VStack(spacing: 0) {
+            if let error {
+                ErrorBannerView(message: error) { self.error = nil }.padding(.horizontal, 16)
+            }
+            if isLoading { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             else if categories.isEmpty {
                 ContentUnavailableView("No Categories", systemImage: "tag",
                     description: Text("Tap + to add a category"))
             } else {
                 ScrollView {
-                    if let error {
-                        ErrorBannerView(message: error) { self.error = nil }.padding(.horizontal, 16)
-                    }
                     LazyVStack(spacing: 8) {
                         ForEach(categories) { root in
                             AccordionCategoryCard(

@@ -8,37 +8,14 @@ struct TagsView: View {
     @State private var deletingTag: TagResponse?
 
     var body: some View {
-        Group {
-            if let vm {
-                if vm.isLoading && vm.tags.isEmpty {
-                    ProgressView()
-                } else if vm.activeTags.isEmpty {
-                    ContentUnavailableView("No Tags", systemImage: "tag",
-                                            description: Text("Tags cut across categories — group expenses by trip, project or anything else that doesn't map to a category tree."))
-                } else {
-                    List {
-                        if let err = vm.error {
-                            ErrorBannerView(message: err) { vm.error = nil }
-                        }
-                        ForEach(vm.activeTags) { tag in
-                            HStack {
-                                TagChip(tag: TagRef(id: tag.id, name: tag.name, color: tag.color, isGlobal: tag.isGlobal))
-                                Spacer()
-                                if tag.isGlobal {
-                                    Image(systemName: "lock.fill").foregroundStyle(.secondary)
-                                } else {
-                                    Button { editingTag = tag } label: { Image(systemName: "pencil") }
-                                        .buttonStyle(.borderless)
-                                    Button(role: .destructive) { deletingTag = tag } label: { Image(systemName: "trash") }
-                                        .buttonStyle(.borderless)
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                ProgressView()
+        // The banner sits above the loading/empty/content switch, not inside the content branch:
+        // a failed load leaves the list empty, and a banner nested in the populated branch would
+        // never render — the failure would read as "No Tags".
+        VStack(spacing: 0) {
+            if let vm, let err = vm.error {
+                ErrorBannerView(message: err) { vm.error = nil }
             }
+            content
         }
         .navigationTitle("Tags")
         .adaptiveReadableWidth()
@@ -48,9 +25,9 @@ struct TagsView: View {
             }
         }
         .task {
-            let model = TagsViewModel(auth: authState)
+            let (model, isNew) = ViewModelStore.shared.model(TagsViewModel.self, auth: authState)
             vm = model
-            await model.load()
+            if isNew { await model.load() }
         }
         .refreshable { await vm?.load() }
         .sheet(isPresented: $showAdd) {
@@ -68,6 +45,37 @@ struct TagsView: View {
                 if let deletingTag { Task { await vm?.deleteTag(id: deletingTag.id) } }
             }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let vm {
+            if vm.isLoading && vm.tags.isEmpty {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if vm.activeTags.isEmpty {
+                ContentUnavailableView("No Tags", systemImage: "tag",
+                    description: Text("Tags cut across categories — group expenses by trip, project or anything else that doesn't map to a category tree."))
+            } else {
+                List {
+                    ForEach(vm.activeTags) { tag in
+                        HStack {
+                            TagChip(tag: TagRef(id: tag.id, name: tag.name, color: tag.color, isGlobal: tag.isGlobal))
+                            Spacer()
+                            if tag.isGlobal {
+                                Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                            } else {
+                                Button { editingTag = tag } label: { Image(systemName: "pencil") }
+                                    .buttonStyle(.borderless)
+                                Button(role: .destructive) { deletingTag = tag } label: { Image(systemName: "trash") }
+                                    .buttonStyle(.borderless)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

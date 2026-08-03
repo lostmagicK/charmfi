@@ -14,8 +14,13 @@ struct FamilyGroupView: View {
     private var service: FamilyGroupService { FamilyGroupService(auth: authState) }
 
     var body: some View {
-        Group {
-            if isLoading { ProgressView() }
+        // Above the switch: a failed fetch leaves `group` nil, and "no group" is a legitimate state,
+        // so without this a broken load reads as "you aren't in a family group".
+        VStack(spacing: 0) {
+            if let error {
+                ErrorBannerView(message: error) { self.error = nil }
+            }
+            if isLoading { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
             else if let group {
                 groupContent(group)
             } else {
@@ -90,7 +95,12 @@ struct FamilyGroupView: View {
 
     private func load() async {
         isLoading = true
-        group = try? await service.getGroup()
+        error = nil
+        do {
+            group = try await service.getGroup()
+        } catch {
+            self.error = error.localizedDescription
+        }
         isLoading = false
     }
 

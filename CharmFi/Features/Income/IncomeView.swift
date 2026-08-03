@@ -10,7 +10,8 @@ struct IncomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let vm {
-                PeriodNavBar(period: Binding(get: { vm.period }, set: { vm.setPeriod($0) }), showModeToggle: false)
+                PeriodNavBar(period: Binding(get: { vm.period }, set: { vm.setPeriod($0) }),
+                             showModeToggle: false, showJumpToPresent: true)
                     .padding(.horizontal)
                     .padding(.vertical, 8)
 
@@ -51,9 +52,9 @@ struct IncomeView: View {
             }
         }
         .task {
-            let model = IncomeViewModel(auth: authState)
+            let (model, isNew) = ViewModelStore.shared.model(IncomeViewModel.self, auth: authState)
             vm = model
-            await model.load()
+            if isNew { await model.load() }
         }
         .sheet(isPresented: $showManageSources) {
             if let vm { ManageSourcesSheet(vm: vm) }
@@ -234,7 +235,7 @@ private struct SourceFormSheet: View {
                 Section("Color") {
                     ColorSwatchPicker(hex: $color)
                 }
-                if let source {
+                if source != nil {
                     Section {
                         Button("Delete Source", role: .destructive) { showDeleteConfirm = true }
                     }

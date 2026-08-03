@@ -48,6 +48,24 @@ final class KeycloakAuthService {
         TokenStore.shared.deleteAuthState()
     }
 
+    /// Whether the identity provider definitively rejected the session, as opposed to the request
+    /// merely not getting through. Only the former should sign the user out — a refresh that failed
+    /// on a flaky connection may well succeed on the next attempt, and treating it as a rejection
+    /// logs people out for walking into a lift. Mirrors Android's `AuthManager.refresh`, which
+    /// clears tokens only on `AuthorizationException.TYPE_OAUTH_TOKEN_ERROR`.
+    static func isSessionRejected(_ error: Error) -> Bool {
+        let ns = error as NSError
+        // An OAuth-level rejection (invalid_grant from an expired offline session, revoked client).
+        if ns.domain == OIDOAuthTokenErrorDomain { return true }
+        // AppAuth wraps transport problems as a general network error — never a rejection.
+        if ns.domain == OIDGeneralErrorDomain {
+            return ns.code != OIDErrorCode.networkError.rawValue
+        }
+        // URLSession-level failures are transport, not identity.
+        if ns.domain == NSURLErrorDomain { return false }
+        return false
+    }
+
     func validAccessToken(from authState: OIDAuthState) async throws -> String {
         return try await withCheckedThrowingContinuation { continuation in
             authState.performAction { accessToken, _, error in

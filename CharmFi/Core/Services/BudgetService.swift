@@ -18,12 +18,16 @@ final class BudgetService: @unchecked Sendable {
         try await api.request(BudgetEndpoint.categorySpending(year: year, month: month), authState: auth)
     }
 
-    func createBudget(_ req: BudgetRequest) async throws -> Budget {
-        try await api.request(BudgetEndpoint.create(req), authState: auth)
+    /// The server answers a create with `{ "id": … }`, not the budget itself — callers refetch.
+    @discardableResult
+    func createBudget(_ req: BudgetRequest) async throws -> String {
+        let res: IdResponse = try await api.request(BudgetEndpoint.create(req), authState: auth)
+        return res.id
     }
 
-    func updateBudget(id: String, req: BudgetRequest) async throws -> Budget {
-        try await api.request(BudgetEndpoint.update(id: id, body: req), authState: auth)
+    /// 204 No Content — decoding a body here would fail every successful update.
+    func updateBudget(id: String, req: BudgetRequest) async throws {
+        try await api.requestVoid(BudgetEndpoint.update(id: id, body: req), authState: auth)
     }
 
     func deleteBudget(id: String) async throws {

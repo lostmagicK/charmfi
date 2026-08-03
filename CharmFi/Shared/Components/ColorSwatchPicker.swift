@@ -5,14 +5,14 @@ import SwiftUI
 struct ColorSwatchPicker: View {
     @Binding var hex: String
 
-    static let palette = [
-        "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981",
-        "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899", "#64748b"
-    ]
+    /// The dashboard's own series palette, not a separate one. Picking from a different set meant a
+    /// category coloured here never matched the colour it was charted with. Mirrors Android, whose
+    /// picker reads `DASHBOARD_COLORS` directly.
+    static let palette = dashboardColors
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 10) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
                 ForEach(Self.palette, id: \.self) { swatch in
                     Button {
                         hex = swatch

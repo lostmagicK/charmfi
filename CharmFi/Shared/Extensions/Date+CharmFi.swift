@@ -40,8 +40,16 @@ extension Date {
         ISO8601DateFormatter().string(from: self)
     }
 
+    /// Machine-readable `yyyy-MM-dd` in the device's local zone.
+    ///
+    /// Locale and calendar are pinned rather than left to the device: a fixed `dateFormat` renders
+    /// in whatever calendar the region is set to, so on a Buddhist or ROC calendar this returns
+    /// "2569-08-03" for today. This string is consumed as data — it goes into the AI system prompt
+    /// and the grounding context — so an unpinned formatter tells the model the wrong year.
     var apiDateString: String {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: self)
     }

@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-final class TagsViewModel {
+final class TagsViewModel: AuthedViewModel {
     var tags: [TagResponse] = []
     var isLoading = false
     var error: String?

@@ -40,9 +40,9 @@ struct ExpenseListView: View {
             }
         }
         .task {
-            let model = ExpenseListViewModel(auth: authState)
+            let (model, isNew) = ViewModelStore.shared.model(ExpenseListViewModel.self, auth: authState)
             vm = model
-            await model.initialLoad()
+            if isNew { await model.initialLoad() }
         }
         .sheet(item: $editingExpense) { e in
             if let vm {
@@ -110,6 +110,14 @@ struct ExpenseListView: View {
                 }
                 .padding(.horizontal, 16).padding(.vertical, 8)
                 .background(Color(.systemGray6))
+            }
+
+            // Above the loading/empty/content switch: a failed load leaves `expenses` empty, and a
+            // banner inside the populated branch would never render — the failure would read as
+            // "No expenses match your filters".
+            if let err = vm.error {
+                ErrorBannerView(message: err) { vm.error = nil }
+                    .padding(.horizontal, 12).padding(.bottom, 4)
             }
 
             if vm.isLoading {

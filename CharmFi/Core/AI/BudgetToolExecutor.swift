@@ -23,6 +23,9 @@ final class BudgetToolExecutor {
     private let tagService: TagService
     private let incomeService: IncomeService
 
+    /// Mirrors Android's `HEX_COLOR` — the only colour form the app renders.
+    private static let hexColor = /#[0-9a-fA-F]{6}/
+
     init(auth: AuthState) {
         budgetService = BudgetService(auth: auth)
         categoryService = CategoryService(auth: auth)
@@ -31,26 +34,63 @@ final class BudgetToolExecutor {
     }
 
     /// A human-readable sentence for the "Apply this change?" confirmation card.
-    func describe(_ name: String, _ input: JSONValue) -> String {
+    ///
+    /// Resolves ids to names so the user sees "Food", not a UUID, and says which month is affected —
+    /// approving an unattributed write is approving nothing. Every lookup falls back to a generic
+    /// label, because a failed fetch must never block a confirmation. Mirrors Android's
+    /// `BudgetToolExecutor.describe` (BudgetToolExecutor.kt).
+    func describe(_ name: String, _ input: JSONValue) async -> String {
         switch name {
         case BudgetToolName.setBudgetAmount:
             let amount = input["amount"]?.doubleValue ?? 0
-            return "Set the budget amount to \(amount.formattedINR)?"
+            let label = await budgetName(input["budgetId"]?.stringValue)
+            return "Set \(label) to \(amount.formattedINR)\(monthSuffix(input))"
         case BudgetToolName.createBudget:
-            let n = input["name"]?.stringValue ?? "budget"
+            let n = input["name"]?.stringValue ?? "a new category"
             let amount = input["amount"]?.doubleValue ?? 0
-            return "Create budget \"\(n)\" at \(amount.formattedINR)/month?"
+            return "Create a \(amount.formattedINR) monthly budget for \(n)"
         case BudgetToolName.createCategory:
-            let n = input["name"]?.stringValue ?? "category"
-            return "Create category \"\(n)\"?"
+            let label = [input["icon"]?.stringValue, input["name"]?.stringValue ?? "a new category"]
+                .compactMap { $0 }.joined(separator: " ")
+            if let parent = await categoryName(input["parentCategoryId"]?.stringValue) {
+                return "Create a new category \(label) under \(parent)"
+            }
+            return "Create a new top-level category \(label)"
         case BudgetToolName.createTag:
-            let n = input["name"]?.stringValue ?? "tag"
-            return "Create tag \"\(n)\"?"
+            return "Create a new tag \"\(input["name"]?.stringValue ?? "untitled")\""
         case BudgetToolName.addTagToCategory:
-            return "Attach this tag to the category?"
+            let tag = await tagName(input["tagId"]?.stringValue)
+            let category = await categoryName(input["categoryId"]?.stringValue) ?? "this category"
+            return "Tag \(category) with \"\(tag)\" — also applies to everything nested under it"
         default:
-            return "Apply this change?"
+            return "Apply this change"
         }
+    }
+
+    private func budgetName(_ id: String?) async -> String {
+        guard let id, let budgets = try? await budgetService.getBudgets(),
+              let found = findBudget(id, in: budgets) else { return "this budget" }
+        return found.categoryName ?? found.name
+    }
+
+    private func tagName(_ id: String?) async -> String {
+        guard let id, let tags = try? await tagService.getTags(),
+              let found = tags.first(where: { $0.id == id }) else { return "this tag" }
+        return found.name
+    }
+
+    private func categoryName(_ id: String?) async -> String? {
+        guard let id, let categories = try? await categoryService.getCategories() else { return nil }
+        return categories.flatMap { $0.flatten() }.first { $0.id == id }?.name
+    }
+
+    private func monthSuffix(_ input: JSONValue) -> String {
+        guard let year = input["year"]?.intValue, let month = input["month"]?.intValue,
+              let date = Calendar.current.date(from: DateComponents(year: year, month: month, day: 1))
+        else { return " every month" }
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return " for \(f.string(from: date))"
     }
 
     func execute(_ name: String, _ input: JSONValue) async -> ToolOutcome {
@@ -80,36 +120,57 @@ final class BudgetToolExecutor {
         let budgets = try await budgetService.getBudgets(year: input["year"]?.intValue, month: input["month"]?.intValue)
         var flat: [JSONValue] = []
         func walk(_ b: Budget, parentId: String?) {
+            var row: [String: JSONValue] = [
+                "id": .string(b.id),
+                "name": .string(b.name),
+                "categoryId": b.categoryId.map(JSONValue.string) ?? .null,
+                "categoryName": b.categoryName.map(JSONValue.string) ?? .null,
+                "parentBudgetId": parentId.map(JSONValue.string) ?? .null,
+                "amountThisMonth": .number(b.effectiveAmount),
+                "defaultAmount": .number(b.defaultAmount),
+                "spent": .number(b.spent),
+                "remaining": .number(b.remaining),
+                // Authoritative per-budget lock: a month that has ended is read-only, and rows can
+                // have different cycle start days, so this must come from the server, not a guess.
+                "editable": .bool(b.isEditable),
+                "hasMonthOverride": .bool(b.isOverridden)
+            ]
+            if b.isBeforeStart { row["notSetForThisMonth"] = .bool(true) }
+            flat.append(.object(row))
+            for child in b.children { walk(child, parentId: b.id) }
+        }
+        for b in budgets { walk(b, parentId: nil) }
+        let now = Calendar.current.dateComponents([.year, .month], from: Date())
+        let result = JSONValue.object([
+            "year": .number(Double(input["year"]?.intValue ?? now.year ?? 0)),
+            "month": .number(Double(input["month"]?.intValue ?? now.month ?? 0)),
+            "budgets": .array(flat)
+        ])
+        return .ok(result, summary: "Listed \(flat.count) budgets")
+    }
+
+    private func listTripBudgets() async throws -> ToolOutcome {
+        let trips = try await budgetService.getTripBudgets()
+        var flat: [JSONValue] = []
+        // Recursive: a trip's sub-budgets share its date range and are budgeted in their own right,
+        // so the model has to see them too.
+        func walk(_ b: Budget, parentId: String?) {
             flat.append(.object([
                 "id": .string(b.id),
                 "name": .string(b.name),
                 "categoryId": b.categoryId.map(JSONValue.string) ?? .null,
                 "categoryName": b.categoryName.map(JSONValue.string) ?? .null,
                 "parentBudgetId": parentId.map(JSONValue.string) ?? .null,
-                "amount": .number(b.effectiveAmount),
+                "startDate": b.startDate.map { .string($0.apiDateString) } ?? .null,
+                "endDate": b.endDate.map { .string($0.apiDateString) } ?? .null,
+                "amount": .number(b.defaultAmount),
                 "spent": .number(b.spent),
-                "editable": .bool(true)
+                "remaining": .number(b.remaining)
             ]))
             for child in b.children { walk(child, parentId: b.id) }
         }
-        for b in budgets { walk(b, parentId: nil) }
-        return .ok(.array(flat), summary: "Listed \(flat.count) budgets")
-    }
-
-    private func listTripBudgets() async throws -> ToolOutcome {
-        let trips = try await budgetService.getTripBudgets()
-        let items: [JSONValue] = trips.map { b in
-            .object([
-                "id": .string(b.id),
-                "name": .string(b.name),
-                "categoryId": b.categoryId.map(JSONValue.string) ?? .null,
-                "startDate": b.startDate.map { .string($0.apiDateString) } ?? .null,
-                "endDate": b.endDate.map { .string($0.apiDateString) } ?? .null,
-                "amount": .number(b.effectiveAmount),
-                "spent": .number(b.spent)
-            ])
-        }
-        return .ok(.array(items), summary: "Listed \(items.count) trip budgets")
+        for b in trips { walk(b, parentId: nil) }
+        return .ok(.array(flat), summary: "Listed \(flat.count) trip budgets")
     }
 
     private func listCategories() async throws -> ToolOutcome {
@@ -172,37 +233,68 @@ final class BudgetToolExecutor {
             let req = BudgetRequest(
                 name: existing.name, defaultAmount: amount, categoryId: existing.categoryId,
                 parentBudgetId: existing.parentBudgetId, isMonthly: existing.isMonthly,
-                cycleStartDay: existing.cycleStartDay, startDate: existing.startDate, endDate: existing.endDate,
-                rolloverEnabled: existing.rolloverEnabled
+                cycleStartDay: existing.cycleStartDay, startDate: existing.startDate, endDate: existing.endDate
             )
-            _ = try await budgetService.updateBudget(id: budgetId, req: req)
+            try await budgetService.updateBudget(id: budgetId, req: req)
         }
         return .ok(.object(["ok": .bool(true)]), summary: "Set budget amount to \(amount.formattedINR)")
     }
 
     private func createBudget(_ input: JSONValue) async throws -> ToolOutcome {
         guard let name = input["name"]?.stringValue else { return .error("name is required") }
+        let now = Calendar.current.dateComponents([.year, .month], from: Date())
         let req = BudgetRequest(
             name: name, defaultAmount: input["amount"]?.doubleValue ?? 0,
             categoryId: input["categoryId"]?.stringValue,
-            cycleStartDay: input["cycleStartDay"]?.intValue ?? 1
+            cycleStartDay: input["cycleStartDay"]?.intValue ?? 1,
+            // Pin the first cycle to the current month; the server rejects past months.
+            effectiveYear: now.year, effectiveMonth: now.month
         )
-        let created = try await budgetService.createBudget(req)
-        return .ok(.object(["id": .string(created.id)]), summary: "Created budget \"\(name)\"")
+        let createdId = try await budgetService.createBudget(req)
+        return .ok(.object(["id": .string(createdId)]), summary: "Created budget \"\(name)\"")
     }
 
     private func createCategory(_ input: JSONValue) async throws -> ToolOutcome {
         guard let name = input["name"]?.stringValue else { return .error("name is required") }
+        let parentId = input["parentCategoryId"]?.stringValue
+        // The whole tree, not the pruned one — a duplicate of a hidden "not an expense" category
+        // is still a duplicate, and the parent has to be resolvable even if it isn't shown.
         let existing = try await categoryService.getCategories()
-        if existing.flatMap({ $0.flatten() }).contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-            return .error("A category named \"\(name)\" already exists")
+
+        var parent: Category?
+        if let parentId {
+            parent = existing.flatMap { $0.flatten() }.first { $0.id == parentId }
+            guard parent != nil else {
+                return .error("No category with id \(parentId). Call \(BudgetToolName.listCategories) for valid ids.")
+            }
         }
+
+        // Siblings only, matching Android. Names aren't unique app-wide — the backend has no such
+        // constraint — so checking the flattened tree rejected legitimate creates like a "Personal
+        // Loan" under Debt Servicing when an unrelated one already sat under Personal.
+        let siblings = parent?.children ?? existing
+        if let clash = siblings.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            // Hand back the id: reuse beats a near-duplicate, since two categories with the same
+            // name under one parent split the history and make every later report ambiguous.
+            return ToolOutcome(
+                content: JSONValue.object([
+                    "ok": .bool(false),
+                    "reason": .string("A category named \"\(clash.name)\" already exists here."),
+                    "existingCategoryId": .string(clash.id)
+                ]).jsonString,
+                summary: "\"\(clash.name)\" already exists",
+                isError: true
+            )
+        }
+
         let req = CategoryRequest(
-            name: name, icon: input["icon"]?.stringValue, color: input["color"]?.stringValue,
-            parentId: input["parentCategoryId"]?.stringValue
+            name: name, icon: input["icon"]?.stringValue,
+            // A malformed colour is cosmetic — drop it rather than fail the whole creation.
+            color: input["color"]?.stringValue.flatMap { (try? Self.hexColor.wholeMatch(in: $0)) == nil ? nil : $0 },
+            parentId: parentId
         )
-        let created = try await categoryService.createCategory(req)
-        return .ok(.object(["id": .string(created.id)]), summary: "Created category \"\(name)\"")
+        let createdId = try await categoryService.createCategory(req)
+        return .ok(.object(["id": .string(createdId)]), summary: "Created category \"\(name)\"")
     }
 
     private func createTag(_ input: JSONValue) async throws -> ToolOutcome {

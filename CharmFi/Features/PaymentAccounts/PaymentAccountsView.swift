@@ -15,16 +15,19 @@ struct PaymentAccountsView: View {
     var otherAccounts: [PaymentAccount] { accounts.filter { !$0.accountType.isCard } }
 
     var body: some View {
-        Group {
+        // The banner sits above the loading/empty/content switch: a failed load leaves `accounts`
+        // empty, and a banner nested in the populated branch would never render — the failure would
+        // read as "No Accounts".
+        VStack(spacing: 0) {
+            if let err = error {
+                ErrorBannerView(message: err) { self.error = nil }
+            }
             if isLoading {
-                ProgressView()
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if accounts.isEmpty {
                 ContentUnavailableView("No Accounts", systemImage: "creditcard", description: Text("Tap + to add an account"))
             } else {
                 List {
-                    if let err = error {
-                        ErrorBannerView(message: err) { self.error = nil }
-                    }
                     if !cardAccounts.isEmpty {
                         Section("Cards") {
                             ForEach(cardAccounts) { acc in accountRow(acc) }
@@ -106,16 +109,22 @@ struct PaymentAccountsView: View {
     @ViewBuilder
     private func accountFormSheet(account: PaymentAccount?) -> some View {
         AccountFormSheet(account: account) { req in
-            if let account {
-                if let updated = try? await service.updateAccount(id: account.id, req: req) {
+            // Returns whether the save landed — the sheet only dismisses on success, so a rejected
+            // save doesn't look identical to an accepted one.
+            do {
+                if let account {
+                    let updated = try await service.updateAccount(id: account.id, req: req)
                     if let idx = accounts.firstIndex(where: { $0.id == account.id }) {
                         accounts[idx] = updated
                     }
+                } else {
+                    accounts.append(try await service.createAccount(req))
                 }
-            } else {
-                if let created = try? await service.createAccount(req) {
-                    accounts.append(created)
-                }
+                // Stats are keyed by account id and don't come back from the write.
+                stats = (try? await service.getStats()) ?? stats
+                return nil
+            } catch {
+                return error.localizedDescription
             }
         }
     }
@@ -153,8 +162,11 @@ struct AccountFormSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AuthState.self) private var authState
     let account: PaymentAccount?
-    var onSave: (PaymentAccountRequest) async -> Void
+    /// Returns nil on success, or the reason the save failed.
+    var onSave: (PaymentAccountRequest) async -> String?
 
+    @State private var saveError: String?
+    @State private var isSaving = false
     @State private var name = ""
     @State private var accountType: AccountType = .savings
     @State private var bank = ""
@@ -163,7 +175,7 @@ struct AccountFormSheet: View {
     @State private var color = "#3b82f6"
     @State private var banks: [Bank] = []
 
-    init(account: PaymentAccount?, onSave: @escaping (PaymentAccountRequest) async -> Void) {
+    init(account: PaymentAccount?, onSave: @escaping (PaymentAccountRequest) async -> String?) {
         self.account = account; self.onSave = onSave
         if let a = account {
             _name = State(initialValue: a.name)
@@ -178,6 +190,9 @@ struct AccountFormSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let saveError {
+                    Text(saveError).font(.caption).foregroundStyle(.red)
+                }
                 TextField("Account Name", text: $name)
                 Picker("Type", selection: $accountType) {
                     ForEach(AccountType.allCases) { t in Text(t.displayName).tag(t) }
@@ -214,8 +229,17 @@ struct AccountFormSheet: View {
                             color: color,
                             billingDay: Int(billingDay)
                         )
-                        Task { await onSave(req); dismiss() }
-                    }.disabled(name.isEmpty)
+                        Task {
+                            isSaving = true
+                            saveError = nil
+                            if let failure = await onSave(req) {
+                                saveError = failure
+                            } else {
+                                dismiss()
+                            }
+                            isSaving = false
+                        }
+                    }.disabled(name.isEmpty || isSaving)
                 }
             }
         }

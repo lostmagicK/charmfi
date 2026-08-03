@@ -4,13 +4,18 @@ import Charts
 struct DashboardView: View {
     @Environment(AuthState.self) private var authState
     @State private var vm: DashboardViewModel?
-    @State private var selectedTab = 0
     @State private var period: DashboardPeriod = .current()
+
+    /// Reads and writes through to the cached view model so the section outlives a rotation.
+    private var selectedSection: Binding<Int> {
+        Binding(get: { vm?.selectedSection ?? 0 },
+                set: { vm?.selectedSection = $0 })
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("", selection: $selectedTab) {
+                Picker("", selection: selectedSection) {
                     Text("Personal").tag(0)
                     Text("Household").tag(1)
                     Text("Accounts").tag(2)
@@ -24,7 +29,7 @@ struct DashboardView: View {
                     .padding(.bottom, 4)
 
                 if let vm {
-                    switch selectedTab {
+                    switch vm.selectedSection {
                     case 0: PersonalTab(vm: vm)
                     case 1: HouseholdView(period: period).environment(authState)
                     case 2: DashboardAccountsView(period: period).environment(authState)
@@ -45,9 +50,15 @@ struct DashboardView: View {
             }
         }
         .task {
-            let model = DashboardViewModel(auth: authState)
+            let (model, isNew) = ViewModelStore.shared.model(DashboardViewModel.self, auth: authState)
             vm = model
-            await model.load(period: period)
+            if isNew {
+                await model.load(period: period)
+            } else {
+                // Reusing a model from before a layout rebuild: adopt the period it holds
+                // so the nav bar doesn't snap back to the current month.
+                period = model.period
+            }
         }
         .onChange(of: period) { _, newPeriod in
             Task { await vm?.load(period: newPeriod) }
@@ -485,7 +496,11 @@ private struct PersonalTab: View {
                     AxisMarks(preset: .aligned, position: .leading) { value in
                         AxisValueLabel {
                             if let name = value.as(String.self) {
-                                Text(name).font(.caption2).lineLimit(1).truncationMode(.middle)
+                                Text(name)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .frame(width: 90, alignment: .leading)
                             }
                         }
                     }

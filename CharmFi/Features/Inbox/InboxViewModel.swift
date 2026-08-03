@@ -21,7 +21,7 @@ enum DuplicateKind {
 
 @Observable
 @MainActor
-final class InboxViewModel {
+final class InboxViewModel: AuthedViewModel {
     // Drafts
     var drafts: [Expense] = []
     var categories: [Category] = []

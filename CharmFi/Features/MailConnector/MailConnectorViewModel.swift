@@ -21,7 +21,7 @@ enum SyncProgress {
 
 @Observable
 @MainActor
-final class MailConnectorViewModel {
+final class MailConnectorViewModel: AuthedViewModel {
     var isSignedIn = false
     var googleEmail: String?
     var syncProgress: SyncProgress = .idle

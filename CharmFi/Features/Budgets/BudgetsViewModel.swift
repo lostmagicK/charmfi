@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-final class BudgetsViewModel {
+final class BudgetsViewModel: AuthedViewModel {
     var budgets: [Budget] = []
     var tripBudgets: [Budget] = []
     var categories: [Category] = []
@@ -14,7 +14,6 @@ final class BudgetsViewModel {
 
     // Global monthly settings
     var cycleDay = 1
-    var rollover = false
 
     // Month selector + This month/Defaults toggle (monthly tab only)
     var period: DashboardPeriod = DashboardPeriod.current().withMode(.month)
@@ -24,17 +23,12 @@ final class BudgetsViewModel {
     var budgetMap: [String?: Budget] = [:]
     var tripBudgetMap: [String?: Budget] = [:]
 
-    // Accordion expanded state
-    var expandedIds: Set<String> = []
-
     private let budgetService: BudgetService
     private let categoryService: CategoryService
-    private let expenseService: ExpenseService
 
     init(auth: AuthState) {
         budgetService = BudgetService(auth: auth)
         categoryService = CategoryService(auth: auth)
-        expenseService = ExpenseService(auth: auth)
     }
 
     // Whether the currently-viewed cycle can be edited at all — derived from the overall budget's
@@ -48,19 +42,44 @@ final class BudgetsViewModel {
         return period.year * 12 + period.month >= now.year * 12 + now.month
     }
 
-    /// Whether a given row can be edited right now. The server sends `isEditable` per budget —
-    /// authoritative when a row exists (rows can have different cycle start days, so the
-    /// page-wide `cycleEditable` heuristic can be wrong for some of them). Falls back to that
-    /// heuristic only when no budget row exists yet for the category.
+    private var isTripTab: Bool { selectedTab == 1 }
+
+    /// Whether a given row can be edited right now. Trips and defaults are month-independent, so
+    /// they are always editable — a past month must still let you change what applies to every
+    /// month. Otherwise the server's per-budget `isEditable` is authoritative (rows can have
+    /// different cycle start days, so the page-wide `cycleEditable` heuristic can be wrong for
+    /// some of them); that heuristic is the fallback only when no row exists yet.
+    /// Mirrors Android's `BudgetRowCtx.editable` (BudgetsScreen.kt).
     func rowEditable(_ budget: Budget?) -> Bool {
-        budget?.isEditable ?? cycleEditable
+        if isTripTab || viewMode == .defaults { return true }
+        return budget?.isEditable ?? cycleEditable
     }
 
-    /// Whether a row should render as "not set" (no bar, dashed placeholder) — the server's
-    /// `isBeforeStart` when a row exists, else the same fallback as `rowEditable`.
+    /// The budget did not exist in this month — never merely "no override for this month".
+    /// Such a row shows the raw spend and no utilization bar, because there was nothing to spend
+    /// against. Defaults mode has no month, so it never applies.
     func rowNotSet(_ budget: Budget?) -> Bool {
-        if let budget { return budget.isBeforeStart || !budget.cycleExists && !budget.isEditable }
-        return !cycleEditable
+        guard let budget, !isTripTab, viewMode == .month else { return false }
+        return budget.isBeforeStart
+    }
+
+    /// A month the budget did not cover has no utilization to show.
+    func rowShowsBar(_ budget: Budget) -> Bool { !budget.isBeforeStart }
+
+    /// Show the bare spend figure when no budget covers this month. Spending still happened.
+    func rowShowsRawSpend(_ budget: Budget?) -> Bool { budget == nil || rowNotSet(budget) }
+
+    /// The default in Defaults mode, otherwise the viewed month's amount.
+    func displayAmount(_ budget: Budget) -> Double {
+        !isTripTab && viewMode == .defaults ? budget.defaultAmount : budget.effectiveAmount
+    }
+
+    /// How this month's amount came about, shown as a chip beside it. Defaults mode is
+    /// month-independent and trips have no cycles, so neither carries one.
+    func chip(_ budget: Budget) -> BudgetChip? {
+        if isTripTab || viewMode == .defaults || budget.isBeforeStart { return nil }
+        if !budget.isEditable { return .frozen }
+        return budget.isOverridden ? .custom : .default
     }
 
     func setPeriod(_ p: DashboardPeriod) {
@@ -83,10 +102,11 @@ final class BudgetsViewModel {
             categorySpending = s
             categories = c
             buildMaps()
-            // Read cycle settings from the first monthly budget
-            if let first = budgets.first {
-                cycleDay = first.cycleStartDay
-                rollover = first.rolloverEnabled
+            // Hydrate the cycle day from the overall budget. Without this the sheet always posts
+            // day 1, which would re-base a budget whose real cycle day differs and orphan its
+            // recorded months. Mirrors Android's `LaunchedEffect(monthlyMap)`.
+            if let overall = budgetMap[nil], overall.isMonthly {
+                cycleDay = overall.cycleStartDay
             }
         } catch {
             self.error = error.localizedDescription
@@ -112,21 +132,16 @@ final class BudgetsViewModel {
         tripBudgetMap = t
     }
 
-    func toggleExpanded(_ id: String) {
-        if expandedIds.contains(id) { expandedIds.remove(id) }
-        else { expandedIds.insert(id) }
-    }
-
     func createBudget(_ req: BudgetRequest) async {
         do {
-            _ = try await budgetService.createBudget(req)
+            try await budgetService.createBudget(req)
             await load()
         } catch { self.error = error.localizedDescription }
     }
 
     func updateBudget(id: String, req: BudgetRequest) async {
         do {
-            _ = try await budgetService.updateBudget(id: id, req: req)
+            try await budgetService.updateBudget(id: id, req: req)
             await load()
         } catch { self.error = error.localizedDescription }
     }
@@ -152,18 +167,25 @@ final class BudgetsViewModel {
         return own + cat.children.map { spentRecursive($0) }.reduce(0, +)
     }
 
-    // Trip root category (global category named "Trip")
-    var tripRoot: Category? {
-        categories.first(where: { $0.name == "Trip" && $0.isGlobal })
+    // Trips across every bucket, each tagged with whether its bucket is the shared one.
+    struct TripEntry: Identifiable {
+        let category: Category
+        let isShared: Bool
+        var id: String { category.id }
     }
-    var tripL2s: [Category] { tripRoot?.children ?? [] }
+    var tripEntries: [TripEntry] {
+        categories.tripBuckets().flatMap { bucket in
+            let shared = categories.isSharedTripBucket(bucket)
+            return bucket.children.map { TripEntry(category: $0, isShared: shared) }
+        }
+    }
 
     /// Categories offered on the monthly-planning tab: excluded subtrees (transfers, card
-    /// payments) and the Trip bucket are pruned out — the server rejects budgets set on either,
-    /// so the monthly tree shouldn't offer "Set" on them. Mirrors Android's
+    /// payments) and every Trips & Events bucket are pruned out — the server rejects budgets set
+    /// on either, so the monthly tree shouldn't offer "Set" on them. Mirrors Android's
     /// `pruneTrips(pruneExcluded(categories))` (BudgetsScreen.kt).
     var monthlyCategories: [Category] {
-        categories.pruneExcluded().filter { !($0.name == "Trip" && $0.isGlobal) }
+        categories.pruneExcluded().pruneTrips()
     }
 
     // The amount a budget contributes to parent/child sum checks while editing — mode-aware for the
@@ -210,4 +232,10 @@ final class BudgetsViewModel {
 
 enum BudgetViewMode {
     case month, defaults
+}
+
+/// Why the amount on a monthly row is what it is: the month has ended and is read-only, an
+/// explicit per-month amount overrides the default, or the default simply applies.
+enum BudgetChip {
+    case frozen, custom, `default`
 }

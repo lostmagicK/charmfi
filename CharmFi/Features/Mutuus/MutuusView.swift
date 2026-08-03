@@ -128,10 +128,16 @@ struct MutuusView: View {
 
     private func load() async {
         isLoading = true
+        error = nil
         async let b = service.getBalances()
         async let l = service.getExpenseLog()
-        balances = (try? await b) ?? []
-        log = (try? await l) ?? []
+        do {
+            let (loadedBalances, loadedLog) = try await (b, l)
+            balances = loadedBalances
+            log = loadedLog
+        } catch {
+            self.error = error.localizedDescription
+        }
         isLoading = false
     }
 }
@@ -149,10 +155,15 @@ struct SettleSheet: View {
     @State private var date = Date()
     @State private var comment = ""
     @State private var accounts: [PaymentAccount] = []
+    @State private var error: String?
+    @State private var isSettling = false
 
     var body: some View {
         NavigationStack {
             Form {
+                if let error {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
                 LabeledContent("Settling with", value: member.displayName)
                 TextField("Amount", text: $amount).keyboardType(.decimalPad)
                 Picker("Payment Method", selection: $paymentMethod) {
@@ -183,11 +194,20 @@ struct SettleSheet: View {
                             transactionDate: date
                         )
                         Task {
-                            try? await service.settle(req)
-                            await onDone()
-                            dismiss()
+                            isSettling = true
+                            error = nil
+                            do {
+                                try await service.settle(req)
+                                await onDone()
+                                dismiss()
+                            } catch {
+                                // Money: a rejected settlement must never dismiss looking like it
+                                // worked. Keep the sheet up with the server's reason.
+                                self.error = error.localizedDescription
+                            }
+                            isSettling = false
                         }
-                    }.disabled(amount.isEmpty)
+                    }.disabled(amount.isEmpty || isSettling)
                 }
             }
         }

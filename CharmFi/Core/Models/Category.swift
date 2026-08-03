@@ -58,6 +58,52 @@ extension Category {
 /// seeded global root carries `excludeFromExpenses`.
 let savingsCategoryName = "Savings and Investments"
 
+/// A category named "Trips and Events" is a bucket of one-off occasions rather than an ordinary
+/// spending category: a holiday, a wedding, a festival. Each one under it is planned as a custom
+/// date-range budget on the Trips & Events tab, so the whole subtree stays out of the monthly
+/// screens. Mirrors Android's `domain/model/TripCategories.kt`.
+let tripCategoryName = "Trips and Events"
+
+extension Collection where Element == Category {
+    /// Every bucket, found anywhere in the tree — they are nested, not roots. A bucket's own
+    /// subtree is occasions, not further buckets, so matches aren't searched into.
+    func tripBuckets() -> [Category] {
+        var found: [Category] = []
+        func walk(_ cats: [Category]) {
+            for cat in cats {
+                if cat.name == tripCategoryName { found.append(cat) } else { walk(cat.children) }
+            }
+        }
+        walk(Array(self))
+        return found
+    }
+
+    /// Drops every bucket subtree — trips and events never count toward a monthly budget.
+    func pruneTrips() -> [Category] {
+        compactMap { cat -> Category? in
+            if cat.name == tripCategoryName { return nil }
+            var copy = cat
+            copy.children = cat.children.pruneTrips()
+            return copy
+        }
+    }
+
+    /// Occasions in a bucket under the global Household root are family-wide — the same rule the
+    /// server shares categories by. A bucket anywhere else (Personal) holds trips of your own.
+    func isSharedTripBucket(_ bucket: Category) -> Bool {
+        func rootOf(_ cats: [Category], target: String, root: Category?) -> Category? {
+            for cat in cats {
+                let here = root ?? cat
+                if cat.id == target { return here }
+                if let found = rootOf(cat.children, target: target, root: here) { return found }
+            }
+            return nil
+        }
+        guard let root = rootOf(Array(self), target: bucket.id, root: nil) else { return false }
+        return root.isGlobal && root.name == "Household"
+    }
+}
+
 extension Collection where Element == Category {
     /// Ids of every category flagged `excludeFromExpenses`, plus everything nested under it.
     /// Expenses booked to these are transfers or card payments rather than spending.

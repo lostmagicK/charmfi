@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 @MainActor
-final class IncomeViewModel {
+final class IncomeViewModel: AuthedViewModel {
     var period: DashboardPeriod = DashboardPeriod.current().withMode(.month)
     var sources: [IncomeSource] = []
     var month: IncomeMonth?

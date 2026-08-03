@@ -18,9 +18,9 @@ struct MailConnectorView: View {
         .navigationTitle("Mail Connector")
         .adaptiveReadableWidth()
         .task {
-            let model = MailConnectorViewModel(auth: authState)
-            model.setModelContext(modelContext)
-            vm = model
+            vm = ViewModelStore.shared.model(MailConnectorViewModel.self, auth: authState) {
+                $0.setModelContext(modelContext)
+            }.model
         }
     }
 

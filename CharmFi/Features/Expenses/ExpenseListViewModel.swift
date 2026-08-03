@@ -11,7 +11,7 @@ enum DatePreset: String, CaseIterable {
 
 @Observable
 @MainActor
-final class ExpenseListViewModel {
+final class ExpenseListViewModel: AuthedViewModel {
     var expenses: [Expense] = []
     var isLoading = false
     var error: String?
@@ -55,9 +55,17 @@ final class ExpenseListViewModel {
         async let cats = categoryService.getCategories()
         async let accts = accountService.getAccounts()
         async let tags = tagService.getTags()
-        categories = (try? await cats) ?? []
-        accounts = (try? await accts) ?? []
-        allTags = (try? await tags) ?? []
+        do {
+            let (loadedCats, loadedAccts, loadedTags) = try await (cats, accts, tags)
+            categories = loadedCats
+            accounts = loadedAccts
+            allTags = loadedTags
+        } catch {
+            // These back the filter chips and the add/edit pickers. Silently empty ones look like
+            // "you have no categories" rather than "the fetch failed".
+            self.error = error.localizedDescription
+        }
+        // Not every user is in a family group — a failure here just means no split/settle options.
         if let members = try? await familyService.getGroup() {
             familyMembers = members.members
         }

@@ -24,15 +24,14 @@ struct AiInsightsView: View {
             }
         }
         .task {
-            let model = AiInsightsViewModel(auth: authState)
-            vm = model
+            vm = ViewModelStore.shared.model(AiInsightsViewModel.self, auth: authState).model
         }
     }
 
     @ViewBuilder
     private func content(vm: AiInsightsViewModel) -> some View {
         VStack(spacing: 0) {
-            Picker("Period", selection: Binding(get: { vm.period }, set: { vm.period = $0 })) {
+            Picker("Period", selection: Binding(get: { vm.period }, set: { vm.selectPeriod($0) })) {
                 ForEach(AiPeriod.allCases) { p in Text(p.rawValue).tag(p) }
             }
             .pickerStyle(.segmented)

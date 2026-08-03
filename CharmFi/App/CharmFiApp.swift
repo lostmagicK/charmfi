@@ -72,5 +72,10 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(preferredColorScheme)
+        .onChange(of: authState.isAuthenticated) { _, isAuthenticated in
+            // Feature view models are cached for the session; drop them so the next
+            // sign-in doesn't reuse the previous account's data.
+            if !isAuthenticated { ViewModelStore.shared.reset() }
+        }
     }
 }

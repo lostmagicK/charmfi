@@ -6,8 +6,15 @@ final class FamilyGroupService: @unchecked Sendable {
 
     init(auth: AuthState) { self.auth = auth }
 
+    /// Nil means "not in a group" — the server answers 404 for that, which is an ordinary state
+    /// rather than a failure. Every other error propagates, so a broken fetch isn't indistinguishable
+    /// from having no group.
     func getGroup() async throws -> FamilyGroup? {
-        try? await api.request(FamilyGroupEndpoint.get, authState: auth)
+        do {
+            return try await api.request(FamilyGroupEndpoint.get, authState: auth)
+        } catch NetworkError.notFound {
+            return nil
+        }
     }
 
     func createGroup(name: String) async throws -> FamilyGroup {

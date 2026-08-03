@@ -175,10 +175,13 @@ struct DashboardPeriod: Equatable, Hashable {
 
 @Observable
 @MainActor
-final class DashboardViewModel {
+final class DashboardViewModel: AuthedViewModel {
     var isLoading = false
     var error: String?
     var period: DashboardPeriod = .current()
+    /// Personal / Household / Accounts. Held here rather than in the view's `@State` so it
+    /// survives the subtree rebuild that a device rotation triggers.
+    var selectedSection = 0
 
     // KPIs
     var thisMonthTotal: Double = 0       // selected-period total (a month, or a whole year)

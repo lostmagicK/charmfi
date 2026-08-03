@@ -3,7 +3,7 @@ import SwiftUI
 // Observable class so async mutations propagate correctly to the UI
 @Observable
 @MainActor
-final class MerchantRulesViewModel {
+final class MerchantRulesViewModel: AuthedViewModel {
     var rules: [MerchantRule] = []
     var categories: [Category] = []
     var isLoading = false
@@ -27,19 +27,32 @@ final class MerchantRulesViewModel {
 
     func load() async {
         isLoading = true
+        error = nil
         async let r = ruleService.getRules()
         async let c = catService.getCategories()
         async let p = userService.getProfile()
-        rules = (try? await r) ?? []
-        categories = (try? await c) ?? []
+        do {
+            let (loadedRules, loadedCategories) = try await (r, c)
+            rules = loadedRules
+            categories = loadedCategories
+        } catch {
+            self.error = error.localizedDescription
+        }
+        // The profile only decides whether AND/OR matching is offered — falling back to the plain
+        // mode is a fine degradation and not worth failing the whole screen over.
         isAdvancedUser = (try? await p)?.isAdvancedUser ?? false
         isLoading = false
     }
 
     func sync() async {
         isSyncing = true
-        rules = (try? await ruleService.getRules()) ?? []
-        toast = "Synced \(rules.count) rule\(rules.count == 1 ? "" : "s") from server"
+        error = nil
+        do {
+            rules = try await ruleService.getRules()
+            toast = "Synced \(rules.count) rule\(rules.count == 1 ? "" : "s") from server"
+        } catch {
+            self.error = error.localizedDescription
+        }
         isSyncing = false
     }
 
@@ -85,9 +98,14 @@ final class MerchantRulesViewModel {
     }
 
     func deleteRule(id: String) async {
-        try? await ruleService.deleteRule(id: id)
-        rules.removeAll { $0.id == id }
-        toast = "Rule deleted"
+        do {
+            try await ruleService.deleteRule(id: id)
+            rules.removeAll { $0.id == id }
+            toast = "Rule deleted"
+        } catch {
+            // Don't drop the row locally — it's still on the server.
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -107,9 +125,9 @@ struct MerchantRulesView: View {
         .navigationTitle("Merchant Rules")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            let model = MerchantRulesViewModel(auth: authState)
+            let (model, isNew) = ViewModelStore.shared.model(MerchantRulesViewModel.self, auth: authState)
             vm = model
-            await model.load()
+            if isNew { await model.load() }
         }
         .sheet(isPresented: $showDialog) {
             if let vm {

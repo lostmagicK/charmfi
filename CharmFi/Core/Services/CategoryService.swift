@@ -10,12 +10,17 @@ final class CategoryService: @unchecked Sendable {
         try await api.request(CategoryEndpoint.list, authState: auth)
     }
 
-    func createCategory(_ req: CategoryRequest) async throws -> Category {
-        try await api.request(CategoryEndpoint.create(req), authState: auth)
+    /// Returns the new id — the endpoint answers `{ "id": ... }`, not the category. Decoding it
+    /// as a `Category` threw "the data couldn't be read because it is missing" on every
+    /// successful create, *after* the row had already been committed.
+    func createCategory(_ req: CategoryRequest) async throws -> String {
+        let res: IdResponse = try await api.request(CategoryEndpoint.create(req), authState: auth)
+        return res.id
     }
 
-    func updateCategory(id: String, req: CategoryRequest) async throws -> Category {
-        try await api.request(CategoryEndpoint.update(id: id, body: req), authState: auth)
+    /// 204 No Content — decoding a body here would fail every successful update.
+    func updateCategory(id: String, req: CategoryRequest) async throws {
+        try await api.requestVoid(CategoryEndpoint.update(id: id, body: req), authState: auth)
     }
 
     func deleteCategory(id: String) async throws {

@@ -6,7 +6,8 @@ final class SwiftDataContainer {
         let schema = Schema([
             CachedEmailPattern.self,
             CachedMerchantRule.self,
-            ProcessedGmailMessage.self
+            ProcessedGmailMessage.self,
+            StoredAiChatMessage.self
         ])
         let config = ModelConfiguration("CharmFi", schema: schema, isStoredInMemoryOnly: false)
         return try! ModelContainer(for: schema, configurations: config)

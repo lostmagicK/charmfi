@@ -12,18 +12,21 @@ final class AuthState {
 
     private(set) var authStateObj: OIDAuthState?
 
+    /// Restores the stored session. A saved session counts as signed in straight away: the refresh
+    /// below is a best-effort warm-up, and only a definitive rejection from the identity provider
+    /// clears it. Launching without a connection used to drop the user at the login screen, because
+    /// any throw at all was treated as a dead session.
     func restoreSession() async {
         guard let stored = KeycloakAuthService.shared.restoreSession() else { return }
+        authStateObj = stored
+        extractClaims(from: stored)
+        isAuthenticated = true
         do {
-            let token = try await KeycloakAuthService.shared.validAccessToken(from: stored)
-            if !token.isEmpty {
-                authStateObj = stored
-                extractClaims(from: stored)
-                isAuthenticated = true
-                TokenStore.shared.saveAuthState(stored)
-            }
+            _ = try await KeycloakAuthService.shared.validAccessToken(from: stored)
+            TokenStore.shared.saveAuthState(stored)
         } catch {
-            isAuthenticated = false
+            if KeycloakAuthService.isSessionRejected(error) { signOut() }
+            // Otherwise keep the session — the next request retries the refresh.
         }
     }
 
@@ -50,9 +53,17 @@ final class AuthState {
 
     func validAccessToken() async throws -> String {
         guard let state = authStateObj else { throw AuthError.notAuthenticated }
-        let token = try await KeycloakAuthService.shared.validAccessToken(from: state)
-        TokenStore.shared.saveAuthState(state)
-        return token
+        do {
+            let token = try await KeycloakAuthService.shared.validAccessToken(from: state)
+            TokenStore.shared.saveAuthState(state)
+            return token
+        } catch {
+            // A genuinely dead session used to leave every screen showing "please sign in again"
+            // with nothing to act on — signing out routes back to the login screen so it can
+            // actually be recovered. Transport failures propagate untouched and stay retryable.
+            if KeycloakAuthService.isSessionRejected(error) { signOut() }
+            throw error
+        }
     }
 
     private func extractClaims(from state: OIDAuthState) {
